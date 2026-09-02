@@ -1,0 +1,7 @@
+node_modules/
+package-lock.json
+artifact.html
+preview.png
+_wrap.html
+*.zip
+.DS_Store
