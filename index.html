@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>常駐音訊保持喚醒</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+:root{
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --bg:#0b0f14; --panel:#141b23; --panel2:#1b242e; --line:#28333f;
+  --fg:#e8eef5; --dim:#93a2b3; --dim2:#6b7c8f;
+  --ok:#3ddc97; --warn:#ffb454; --err:#ff6b6b; --acc:#5aa9ff;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--fg);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  padding:14px 14px calc(28px + env(safe-area-inset-bottom)); max-width:640px; margin:0 auto;
+  -webkit-text-size-adjust:100%;
+}
+h1{font-size:19px;margin:4px 0 2px;letter-spacing:.02em}
+.sub{color:var(--dim2);font-size:12.5px;margin:0 0 16px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
+h2{font:600 12px/1.3 var(--mono);text-transform:uppercase;letter-spacing:.11em;color:var(--dim);margin:0 0 12px}
+.v,.big,.ticks,#log,.badge{font-family:var(--mono)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0}
+.row+.row{border-top:1px solid rgba(255,255,255,.04)}
+.k{color:var(--dim);font-size:13px}
+.v{font-variant-numeric:tabular-nums;font-size:13.5px;font-weight:600}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.03em}
+.badge.running{background:rgba(61,220,151,.15);color:var(--ok)}
+.badge.suspended{background:rgba(255,180,84,.15);color:var(--warn)}
+.badge.closed,.badge.none{background:rgba(255,107,107,.15);color:var(--err)}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+button{
+  font:inherit;font-weight:600;color:var(--fg);background:var(--panel2);
+  border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;transition:transform .06s,background .15s;
+}
+button:active{transform:scale(.98)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--acc);border-color:var(--acc);color:#06121f}
+button.danger{background:rgba(255,107,107,.14);border-color:rgba(255,107,107,.35);color:var(--err)}
+button.wide{width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+label.field{display:block;margin:12px 0 0}
+label.field>span{display:block;font-size:12.5px;color:var(--dim);margin-bottom:6px}
+select,input[type=text],input[type=file]{
+  width:100%;font:inherit;color:var(--fg);background:var(--panel2);
+  border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+}
+input[type=range]{width:100%;accent-color:var(--acc);height:34px}
+.slider-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px}
+.big{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.unit{font-size:13px;color:var(--dim);font-weight:600}
+.hint{font-size:11.5px;color:var(--dim2);line-height:1.5;margin-top:8px}
+.hint b{color:var(--warn);font-weight:600}
+.meter{height:10px;border-radius:6px;background:var(--panel2);overflow:hidden;position:relative;margin-top:8px}
+.meter>i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--ok),#8fe388 55%,var(--warn) 80%,var(--err));transition:width .06s linear}
+.ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--dim2);margin-top:3px;font-variant-numeric:tabular-nums}
+.chk{display:flex;align-items:center;gap:10px;padding:9px 0;font-size:13.5px}
+.chk input{width:20px;height:20px;accent-color:var(--acc);flex:none}
+#log{
+  background:#080c11;border:1px solid var(--line);border-radius:10px;
+  height:180px;overflow-y:auto;padding:9px 10px;
+  font:11.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  white-space:pre-wrap;word-break:break-word;
+}
+#log .t{color:var(--dim2)}
+#log .info{color:#b8c6d6}
+#log .ok{color:var(--ok)}
+#log .warn{color:var(--warn)}
+#log .err{color:var(--err)}
+.sep{height:1px;background:var(--line);margin:14px -14px}
+.note{background:rgba(90,169,255,.08);border-left:3px solid var(--acc);padding:9px 11px;border-radius:0 8px 8px 0;font-size:12px;color:#c3d4e6;line-height:1.6;margin-top:10px}
+.note.warn{background:rgba(255,180,84,.08);border-color:var(--warn);color:#e8d6b8}
+</style>
+</head>
+<body>
+
+<h1>常駐音訊保持喚醒</h1>
+<p class="sub">Live Caption Keep-Alive · Web Audio 永不休眠管線</p>
+
+<section>
+  <h2>狀態監控</h2>
+  <div class="row"><span class="k">AudioContext</span><span class="badge none" id="stState"><i class="dot"></i><span id="stStateT">NONE</span></span></div>
+  <div class="row"><span class="k">底噪串流</span><span class="v" id="stNoise">停止</span></div>
+  <div class="row"><span class="k">取樣率</span><span class="v" id="stSr">—</span></div>
+  <div class="row"><span class="k">輸出延遲 (base / output)</span><span class="v" id="stLat">—</span></div>
+  <div class="row"><span class="k">已連續運行</span><span class="v" id="stUp">00:00</span></div>
+  <div class="row"><span class="k">自動恢復次數</span><span class="v" id="stRes">0</span></div>
+  <div class="row"><span class="k">實測輸出電平</span><span class="v" id="stLvl">—∞ dBFS</span></div>
+  <div class="meter"><i id="meterBar"></i></div>
+  <div class="ticks"><span>-80</span><span>-60</span><span>-40</span><span>-20</span><span>0</span></div>
+
+  <div class="sep"></div>
+  <div class="grid2">
+    <button class="primary" id="btnStart">▶ 啟動管線</button>
+    <button id="btnResume">⏻ 喚醒 Resume</button>
+  </div>
+  <div class="grid2" style="margin-top:8px">
+    <button id="btnSuspend">⏸ 暫停</button>
+    <button class="danger" id="btnStop">■ 停止並釋放</button>
+  </div>
+  <div class="note">首次啟動必須由使用者手勢觸發（瀏覽器自動播放政策）。若系統在背景把音訊掛起，按「喚醒 Resume」即可救回。</div>
+</section>
+
+<section>
+  <h2>底噪微調 (Keep-Alive Stream)</h2>
+  <div class="slider-head">
+    <span class="k">底噪音量</span>
+    <span><span class="big" id="dbVal">-40.0</span> <span class="unit">dBFS RMS</span></span>
+  </div>
+  <input type="range" id="dbSlider" min="-60" max="-30" step="0.5" value="-40">
+  <div class="ticks"><span id="tickMin">-60 dB</span><span>線性 Gain <b id="gainVal">0.0100</b></span><span id="tickMax">-30 dB</span></div>
+  <label class="chk"><input type="checkbox" id="chkWideRange"><span>解鎖延伸範圍 -90 ~ -12 dB（找觸發極限用）</span></label>
+
+  <label class="field"><span>噪音類型</span>
+    <select id="selColor">
+      <option value="pink">粉紅噪音 Pink（規格預設）</option>
+      <option value="white">白噪音 White</option>
+      <option value="speech">語音形狀噪音 LTASS（建議先試這個）</option>
+    </select>
+  </label>
+
+  <label class="field"><span>限頻濾波（降低被判為音樂的機率）</span>
+    <select id="selFilter">
+      <option value="none">關閉（全頻）</option>
+      <option value="lp300">低通 300 Hz（幾乎聽不見）</option>
+      <option value="hp6k">高通 6 kHz（語音帶外）</option>
+    </select>
+  </label>
+
+  <label class="field"><span>音節包絡調變（模擬語音 4 Hz 節律，實驗性）</span>
+    <select id="selAm">
+      <option value="0">關閉（純穩態，規格預設）</option>
+      <option value="4">4 Hz 音節調變（深度 60%）</option>
+      <option value="3">3 Hz 音節調變</option>
+      <option value="6">6 Hz 音節調變</option>
+    </select>
+  </label>
+
+  <label class="field"><span>產生器實作</span>
+    <select id="selMode">
+      <option value="buffer">迴圈緩衝 20s + 等功率交叉淡接（推薦）</option>
+      <option value="worklet">AudioWorklet 即時生成</option>
+    </select>
+  </label>
+
+  <div class="note warn"><b>為什麼不要 ScriptProcessorNode：</b>它已被廢棄，且回呼跑在主執行緒 —— PWA 進背景時主執行緒會被節流，底噪反而會先斷掉，與需求完全相反。</div>
+  <div class="hint">開啟限頻或音節調變會降低實際 RMS，請以上方「實測輸出電平」為準，而非滑桿標示值。</div>
+</section>
+
+<section>
+  <h2>短語音注入測試</h2>
+  <div class="grid2">
+    <button class="primary" id="btnSynth">🔊 合成語音 2s</button>
+    <button id="btnTone">🎯 1kHz 嗶聲 0.3s</button>
+  </div>
+
+  <label class="field"><span>上傳音檔（mp3 / wav / m4a / ogg）</span>
+    <input type="file" id="fileIn" accept="audio/*">
+  </label>
+  <button class="wide" id="btnFile" disabled style="margin-top:8px">▶ 播放已載入音檔</button>
+
+  <label class="field"><span>系統 TTS 日語測試（真實語音，可驗證 Live Caption）</span>
+    <input type="text" id="ttsText" value="はじめまして、よろしくお願いします。">
+  </label>
+  <button class="wide" id="btnTts" style="margin-top:8px">🗣 用系統 TTS 唸出來</button>
+
+  <div class="sep"></div>
+  <button class="wide danger" id="btnCold">🧪 冷啟動對照組（suspend 2 秒後立刻播放）</button>
+  <div class="hint">對照組會先關掉底噪管線、等 2 秒讓系統音訊通道休眠，再立即注入語音 —— 用來重現「吃字」現象，和保持喚醒時的結果做 A/B 比較。</div>
+</section>
+
+<section>
+  <h2>背景保持</h2>
+  <label class="chk"><input type="checkbox" id="chkBgLock"><span>背景鎖：靜音 &lt;audio&gt; + MediaSession（讓 Chrome 視為媒體播放）</span></label>
+  <label class="chk"><input type="checkbox" id="chkWake"><span>螢幕 Wake Lock（避免鎖屏中斷）</span></label>
+  <label class="chk"><input type="checkbox" id="chkAuto" checked><span>自動守護：狀態異常時自動嘗試 resume()</span></label>
+
+  <label class="field"><span>輸出路由</span>
+    <select id="selRoute">
+      <option value="direct">直接輸出 AudioContext.destination（推薦）</option>
+      <option value="stream">經 MediaStream → &lt;audio&gt;（實驗性）</option>
+    </select>
+  </label>
+  <div class="note warn"><b>注意：</b>MediaStream 路由在部分 Android 上會被導向「通話音訊串流」而非媒體串流，可能反而讓 Live Caption 收不到。若字幕消失請切回直接輸出。</div>
+  <button class="wide" id="btnInstall" style="margin-top:12px;display:none">📲 安裝為 PWA</button>
+</section>
+
+<section>
+  <h2>事件記錄</h2>
+  <div id="log"></div>
+  <div class="grid2" style="margin-top:10px">
+    <button id="btnClearLog">清除</button>
+    <button id="btnCopyLog">複製全部</button>
+  </div>
+</section>
+
+<audio id="sinkEl" playsinline></audio>
+<audio id="bgLockEl" loop playsinline></audio>
+
+<script src="app.js"></script>
+</body>
+</html>
